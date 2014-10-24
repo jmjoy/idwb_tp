@@ -5,6 +5,9 @@ class WeiboAction extends CommonAction{
 	public function index(){
 	}
 	
+	/**
+	 * get one pre's weibo
+	 */
 	public function one(){
 		// 输入验证
 		if(!$uid = I('post.id', 0, 'intval'))  return;
@@ -24,6 +27,9 @@ class WeiboAction extends CommonAction{
 		echo json_encode($res);
 	}
 	
+	/**
+	 * get one per's and his/her attentions' weibo
+	 */
 	public function all(){
 		// 输入验证
 		if(!$id = I('post.id', 0, 'intval'))  return;
@@ -61,6 +67,9 @@ class WeiboAction extends CommonAction{
 		echo json_encode($res);
 	}
 
+	/**
+	 * handle praise
+	 */
 	public function praise(){
 		if(!$wid = I('post.wid', 0, 'intval'))  return;
 		// 检测操作
@@ -79,6 +88,39 @@ class WeiboAction extends CommonAction{
 		}
 	}
 
+	/**
+	 * handle comment
+	 */
+	public function comment(){
+		// validate args
+		if(!$wid = I('post.wid', 0, 'intval'))  return;
+		if(!$comment = I('post.comment', '', ''))  return;
+		$comment = mb_substr($comment, 0, 50, 'utf-8');
+		$data = array(
+				'wid'		=>	$wid,
+				'uid'		=>	$this->id,
+				'content'	=>	$comment,
+				'ctime'		=>	time()
+		);
+		if(!M('Comment')->data($data)->add())  return;
+		echo '1';
+	}
+	
+	/**
+	 * list Comment of a weibo
+	 */
+	public function listComment(){
+		// validate args
+		if(!$wid = I('post.wid', 0, 'intval'))  return;
+		if(!$limit = I('post.limit', 0, 'intval'))  return;
+		$page = I('post.page', 0, 'intval');
+		// query database
+		$comment = M('Comment')->where('wid = %d', $wid)->page($page, $limit)->order('ctime desc')->select();
+		if(!$comment)  return;
+		// json back
+		echo json_encode($comment);
+	}	
+	
 	/**
 	 * 组装数组
 	 */
