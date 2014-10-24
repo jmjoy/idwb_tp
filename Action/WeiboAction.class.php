@@ -41,16 +41,7 @@ class WeiboAction extends CommonAction{
 		// 检测res是否查询到
 		if(!$res)  return; 
 		// 查询 赞 评论 转发 的数量
-		$having = '';
-		foreach($res as $row){
-			$having .= $row['wid'] . ',';
-		}
-		$having = rtrim($having, ',');
-		$praise = M('Praise')->field('wid, count(*) c')->group('wid')->having("wid in ($having)")->select();
-		// 组装数组
-		if(is_array($praise)){
-			$res = $this->_glueArray($res, $praise, 'wid', 'praise');
-		}
+		$res = $this->_glueNumArgs($res);
 		// 看我是不是关注了
 		$praised = M('Praise')->where('uid = %d', $this->id)->getField('wid', true);
 		if($praised){
@@ -115,30 +106,68 @@ class WeiboAction extends CommonAction{
 		if(!$limit = I('post.limit', 0, 'intval'))  return;
 		$page = I('post.page', 0, 'intval');
 		// query database
-		$comment = M('Comment')->where('wid = %d', $wid)->page($page, $limit)->order('ctime desc')->select();
+		$comment = M('Comment')->alias('c')->field('c.uid uid, u.name, c.ctime, c.content')->
+				   join('inner join ' . C('DB_PREFIX') . 'user u on u.id = c.uid')->
+				   where('wid = %d', $wid)->page($page, $limit)->order('ctime desc')->select();
 		if(!$comment)  return;
 		// json back
 		echo json_encode($comment);
 	}	
 	
 	/**
-	 * 组装数组
+	 * push three type nums into res
+	 * @param unknown $res
+	 * @return unknown
 	 */
-	private function _glueArray($res, $arr, $key, $key_name, $count_name = 'c'){
-		$tmp_arr = array();
-		foreach($arr as $row){
-			$tmp_arr[$row[$key]] = $row[$count_name];
-		}
-		$arr = $tmp_arr;
-		$tmp_arr = array();
+	private function _glueNumArgs($res){
+		// 查询 赞 评论 转发 的数量
+		$having = '';
 		foreach($res as $row){
-			if(in_array($row[$key], array_keys($arr))){
-				$row[$key_name] = $arr[$row[$key]];
-			}
-			$tmp_arr[] = $row;
+			$having .= $row['wid'] . ',';
 		}
-		return $tmp_arr;
-	} 
+		$having = rtrim($having, ',');
+		// 查询三种数量
+		$praise_res = M('Praise')->field('wid, count(*) c')->group('wid')->having("wid in ($having)")->select();
+		$comment_res = M('Comment')->field('wid, count(*) c')->group('wid')->having("wid in ($having)")->select();
+		$forward_res = M('Forward')->field('wid, count(*) c')->group('wid')->having("wid in ($having)")->select();
+		// 转化格式
+		$praise = $this->_formatNumArr($praise_res);
+		$comment = $this->_formatNumArr($comment_res);
+		$forward = $this->_formatNumArr($forward_res);
+		//
+		return $this->_glueCount($res, $praise, $comment, $forward);
+	}
 	
+	/**
+	 * 将三种数量的数组转化成好看的格式
+	 */
+	private function _formatNumArr($arr){
+		$map = array();
+		if($arr){
+			foreach($arr as $row){
+				$map[$row['wid']] = $row['c'];
+			}		
+		}
+		return $map;
+	}
 	
+	/**
+	 * what's the best name of me ?
+	 */
+	private function _glueCount($res, $praise, $comment, $forward){
+		$map = array();
+		foreach($res as $row){
+			if($praise && array_key_exists($row['wid'], $praise) ){
+				$row['praise'] = $praise[$row['wid'] ];
+			}
+			if($comment && array_key_exists($row['wid'], $comment) ){
+				$row['comment'] = $comment[$row['wid'] ];
+			}
+			if($forward && array_key_exists($row['wid'], $forward) ){
+				$row['forward'] = $forward[$row['wid'] ];
+			}
+			$map[] = $row;
+		}
+		return $map;
+	}
 }
